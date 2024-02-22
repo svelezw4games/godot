@@ -38,6 +38,7 @@
 #include "core/os/keyboard.h"
 #include "core/os/os.h"
 #include "core/version.h"
+#include "editor/code_editor.h"
 #include "editor/debugger/editor_debugger_node.h"
 #include "editor/debugger/script_editor_debugger.h"
 #include "editor/editor_command_palette.h"
@@ -1639,7 +1640,7 @@ void ScriptEditor::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_ENTER_TREE: {
 			EditorRunBar::get_singleton()->connect("stop_pressed", callable_mp(this, &ScriptEditor::_editor_stop));
-			_editor_settings_changed();
+			_apply_editor_settings();
 			[[fallthrough]];
 		}
 
@@ -2481,6 +2482,12 @@ bool ScriptEditor::edit(const Ref<Resource> &p_resource, int p_line, int p_col, 
 	se->connect("replace_in_files_requested", callable_mp(this, &ScriptEditor::_on_replace_in_files_requested));
 	se->connect("go_to_method", callable_mp(this, &ScriptEditor::script_goto_method));
 
+	CodeTextEditor *cte = se->get_code_editor();
+	if (cte) {
+		cte->set_zoom_factor(zoom_factor);
+		cte->connect("zoomed", callable_mp(this, &ScriptEditor::_set_zoom_factor));
+	}
+
 	//test for modification, maybe the script was not edited but was loaded
 
 	_test_script_times_on_disk(p_resource);
@@ -2726,6 +2733,10 @@ void ScriptEditor::_add_callback(Object *p_obj, const String &p_function, const 
 	Ref<Script> scr = p_obj->get_script();
 	ERR_FAIL_COND(!scr.is_valid());
 
+	if (!scr->get_language()->can_make_function()) {
+		return;
+	}
+
 	EditorNode::get_singleton()->push_item(scr.ptr());
 
 	for (int i = 0; i < tab_container->get_tab_count(); i++) {
@@ -2775,6 +2786,16 @@ void ScriptEditor::_save_layout() {
 }
 
 void ScriptEditor::_editor_settings_changed() {
+	if (!EditorSettings::get_singleton()->check_changed_settings_in_group("interface/editor") &&
+			!EditorSettings::get_singleton()->check_changed_settings_in_group("text_editor") &&
+			!EditorSettings::get_singleton()->check_changed_settings_in_group("docks/filesystem")) {
+		return;
+	}
+
+	_apply_editor_settings();
+}
+
+void ScriptEditor::_apply_editor_settings() {
 	textfile_extensions.clear();
 	const Vector<String> textfile_ext = ((String)(EDITOR_GET("docks/filesystem/textfile_extensions"))).split(",", false);
 	for (const String &E : textfile_ext) {
@@ -2799,6 +2820,11 @@ void ScriptEditor::_editor_settings_changed() {
 		EditorSettings::get_singleton()->load_text_editor_theme();
 	}
 
+	_update_script_colors();
+	_update_script_names();
+
+	ScriptServer::set_reload_scripts_on_save(EDITOR_GET("text_editor/behavior/files/auto_reload_and_parse_scripts_on_save"));
+
 	for (int i = 0; i < tab_container->get_tab_count(); i++) {
 		ScriptEditorBase *se = Object::cast_to<ScriptEditorBase>(tab_container->get_tab_control(i));
 		if (!se) {
@@ -2807,10 +2833,6 @@ void ScriptEditor::_editor_settings_changed() {
 
 		se->update_settings();
 	}
-	_update_script_colors();
-	_update_script_names();
-
-	ScriptServer::set_reload_scripts_on_save(EDITOR_GET("text_editor/behavior/files/auto_reload_and_parse_scripts_on_save"));
 }
 
 void ScriptEditor::_filesystem_changed() {
@@ -3313,6 +3335,8 @@ void ScriptEditor::set_window_layout(Ref<ConfigFile> p_layout) {
 		}
 	}
 
+	_set_zoom_factor(p_layout->get_value("ScriptEditor", "zoom_factor", 1.0f));
+
 	restoring_layout = false;
 
 	_update_script_names();
@@ -3362,6 +3386,7 @@ void ScriptEditor::get_window_layout(Ref<ConfigFile> p_layout) {
 	p_layout->set_value("ScriptEditor", "open_help", helps);
 	p_layout->set_value("ScriptEditor", "script_split_offset", script_split->get_split_offset());
 	p_layout->set_value("ScriptEditor", "list_split_offset", list_split->get_split_offset());
+	p_layout->set_value("ScriptEditor", "zoom_factor", zoom_factor);
 
 	// Save the cache.
 	script_editor_cache->save(EditorPaths::get_singleton()->get_project_settings_dir().path_join("script_editor_cache.cfg"));
@@ -3797,6 +3822,24 @@ void ScriptEditor::_on_find_in_files_modified_files(PackedStringArray paths) {
 	_update_modified_scripts_for_external_editor();
 }
 
+void ScriptEditor::_set_zoom_factor(float p_zoom_factor) {
+	if (zoom_factor == p_zoom_factor) {
+		return;
+	}
+	zoom_factor = p_zoom_factor;
+	for (int i = 0; i < tab_container->get_tab_count(); i++) {
+		ScriptEditorBase *se = Object::cast_to<ScriptEditorBase>(tab_container->get_tab_control(i));
+		if (se) {
+			CodeTextEditor *cte = se->get_code_editor();
+			if (cte) {
+				if (zoom_factor != cte->get_zoom_factor()) {
+					cte->set_zoom_factor(zoom_factor);
+				}
+			}
+		}
+	}
+}
+
 void ScriptEditor::_window_changed(bool p_visible) {
 	make_floating->set_visible(!p_visible);
 	is_floating = p_visible;
@@ -3868,7 +3911,7 @@ ScriptEditor::ScriptEditor(WindowWrapper *p_wrapper) {
 	scripts_vbox->add_child(filter_scripts);
 
 	script_list = memnew(ItemList);
-	script_list->set_auto_translate(false);
+	script_list->set_auto_translate_mode(AUTO_TRANSLATE_MODE_DISABLED);
 	scripts_vbox->add_child(script_list);
 	script_list->set_custom_minimum_size(Size2(150, 60) * EDSCALE); //need to give a bit of limit to avoid it from disappearing
 	script_list->set_v_size_flags(SIZE_EXPAND_FILL);
@@ -3913,7 +3956,7 @@ ScriptEditor::ScriptEditor(WindowWrapper *p_wrapper) {
 	overview_vbox->add_child(filter_methods);
 
 	members_overview = memnew(ItemList);
-	members_overview->set_auto_translate(false);
+	members_overview->set_auto_translate_mode(AUTO_TRANSLATE_MODE_DISABLED);
 	overview_vbox->add_child(members_overview);
 
 	members_overview->set_allow_reselect(true);
@@ -3922,7 +3965,7 @@ ScriptEditor::ScriptEditor(WindowWrapper *p_wrapper) {
 	members_overview->set_allow_rmb_select(true);
 
 	help_overview = memnew(ItemList);
-	help_overview->set_auto_translate(false);
+	help_overview->set_auto_translate_mode(AUTO_TRANSLATE_MODE_DISABLED);
 	overview_vbox->add_child(help_overview);
 	help_overview->set_allow_reselect(true);
 	help_overview->set_custom_minimum_size(Size2(0, 60) * EDSCALE); //need to give a bit of limit to avoid it from disappearing

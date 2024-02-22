@@ -149,6 +149,10 @@ public:
 	static HashMap<StringName, StringName> resource_base_extensions;
 	static HashMap<StringName, StringName> compat_classes;
 
+#ifdef TOOLS_ENABLED
+	static HashMap<StringName, ObjectGDExtension> placeholder_extensions;
+#endif
+
 #ifdef DEBUG_METHODS_ENABLED
 	static MethodBind *bind_methodfi(uint32_t p_flags, MethodBind *p_bind, bool p_compatibility, const MethodDefinition &method_name, const Variant **p_defs, int p_defcount);
 #else
@@ -177,6 +181,8 @@ private:
 	static void _bind_compatibility(ClassInfo *type, MethodBind *p_method);
 	static MethodBind *_bind_vararg_method(MethodBind *p_bind, const StringName &p_name, const Vector<Variant> &p_default_args, bool p_compatibility);
 	static void _bind_method_custom(const StringName &p_class, MethodBind *p_method, bool p_compatibility);
+
+	static Object *_instantiate_internal(const StringName &p_class, bool p_require_real_class = false);
 
 public:
 	// DO NOT USE THIS!!!!!! NEEDS TO BE PUBLIC BUT DO NOT USE NO MATTER WHAT!!!
@@ -253,6 +259,7 @@ public:
 	static void get_class_list(List<StringName> *p_classes);
 #ifdef TOOLS_ENABLED
 	static void get_extensions_class_list(List<StringName> *p_classes);
+	static ObjectGDExtension *get_placeholder_extension(const StringName &p_class);
 #endif
 	static void get_inheriters_from_class(const StringName &p_class, List<StringName> *p_classes);
 	static void get_direct_inheriters_from_class(const StringName &p_class, List<StringName> *p_classes);
@@ -264,6 +271,7 @@ public:
 	static bool can_instantiate(const StringName &p_class);
 	static bool is_virtual(const StringName &p_class);
 	static Object *instantiate(const StringName &p_class);
+	static Object *instantiate_no_placeholders(const StringName &p_class);
 	static void set_object_extension_instance(Object *p_object, const StringName &p_class, GDExtensionClassInstancePtr p_instance);
 
 	static APIType get_api_type(const StringName &p_class);
@@ -410,6 +418,7 @@ public:
 
 	static void add_virtual_method(const StringName &p_class, const MethodInfo &p_method, bool p_virtual = true, const Vector<String> &p_arg_names = Vector<String>(), bool p_object_core = false);
 	static void get_virtual_methods(const StringName &p_class, List<MethodInfo> *p_methods, bool p_no_inheritance = false);
+	static void add_extension_class_virtual_method(const StringName &p_class, const GDExtensionClassVirtualMethodInfo *p_method_info);
 
 	static void bind_integer_constant(const StringName &p_class, const StringName &p_enum, const StringName &p_name, int64_t p_constant, bool p_is_bitfield = false);
 	static void get_integer_constant_list(const StringName &p_class, List<String> *p_constants, bool p_no_inheritance = false);

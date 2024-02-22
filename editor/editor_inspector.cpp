@@ -43,6 +43,7 @@
 #include "editor/multi_node_edit.h"
 #include "editor/plugins/script_editor_plugin.h"
 #include "editor/themes/editor_scale.h"
+#include "editor/themes/editor_theme_manager.h"
 #include "scene/gui/spin_box.h"
 #include "scene/gui/texture_rect.h"
 #include "scene/property_utils.h"
@@ -429,7 +430,7 @@ EditorInspector *EditorProperty::get_parent_inspector() const {
 		}
 		parent = parent->get_parent();
 	}
-	ERR_FAIL_V_MSG(nullptr, "EditorProperty is outside inspector.");
+	return nullptr;
 }
 
 void EditorProperty::set_doc_path(const String &p_doc_path) {
@@ -915,7 +916,13 @@ Control *EditorProperty::make_custom_tooltip(const String &p_text) const {
 	EditorHelpBit *tooltip = nullptr;
 
 	if (has_doc_tooltip) {
-		tooltip = memnew(EditorHelpTooltip(p_text));
+		String custom_description;
+
+		const EditorInspector *inspector = get_parent_inspector();
+		if (inspector) {
+			custom_description = inspector->get_custom_property_description(p_text);
+		}
+		tooltip = memnew(EditorHelpTooltip(p_text, custom_description));
 	}
 
 	if (object->has_method("_get_property_warning")) {
@@ -2799,7 +2806,9 @@ void EditorInspector::update_tree() {
 						(!filter.is_empty() || !restrict_to_basic || (N->get().usage & PROPERTY_USAGE_EDITOR_BASIC_SETTING))) {
 					break;
 				}
-				if (N->get().usage & PROPERTY_USAGE_CATEGORY) {
+				// Treat custom categories as second-level ones. Do not skip a normal category if it is followed by a custom one.
+				// Skip in the other 3 cases (normal -> normal, custom -> custom, custom -> normal).
+				if ((N->get().usage & PROPERTY_USAGE_CATEGORY) && (p.hint_string.is_empty() || !N->get().hint_string.is_empty())) {
 					valid = false;
 					break;
 				}
@@ -3804,7 +3813,7 @@ void EditorInspector::_property_changed(const String &p_path, const Variant &p_v
 }
 
 void EditorInspector::_multiple_properties_changed(Vector<String> p_paths, Array p_values, bool p_changing) {
-	ERR_FAIL_COND(p_paths.size() == 0 || p_values.size() == 0);
+	ERR_FAIL_COND(p_paths.is_empty() || p_values.is_empty());
 	ERR_FAIL_COND(p_paths.size() != p_values.size());
 	String names;
 	for (int i = 0; i < p_paths.size(); i++) {
@@ -4037,7 +4046,9 @@ void EditorInspector::_notification(int p_what) {
 		} break;
 
 		case EditorSettings::NOTIFICATION_EDITOR_SETTINGS_CHANGED: {
-			_update_inspector_bg();
+			if (EditorThemeManager::is_generated_theme_outdated()) {
+				_update_inspector_bg();
+			}
 
 			bool needs_update = false;
 
@@ -4082,6 +4093,19 @@ void EditorInspector::set_property_prefix(const String &p_prefix) {
 
 String EditorInspector::get_property_prefix() const {
 	return property_prefix;
+}
+
+void EditorInspector::add_custom_property_description(const String &p_class, const String &p_property, const String &p_description) {
+	const String key = vformat("property|%s|%s|", p_class, p_property);
+	custom_property_descriptions[key] = p_description;
+}
+
+String EditorInspector::get_custom_property_description(const String &p_property) const {
+	HashMap<String, String>::ConstIterator E = custom_property_descriptions.find(p_property);
+	if (E) {
+		return E->value;
+	}
+	return "";
 }
 
 void EditorInspector::set_object_class(const String &p_class) {

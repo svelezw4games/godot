@@ -150,6 +150,10 @@ Control *TextEditor::get_base_editor() const {
 	return code_editor->get_text_editor();
 }
 
+CodeTextEditor *TextEditor::get_code_editor() const {
+	return code_editor;
+}
+
 PackedInt32Array TextEditor::get_breakpoints() {
 	return PackedInt32Array();
 }
@@ -348,6 +352,7 @@ void TextEditor::set_find_replace_bar(FindReplaceBar *p_bar) {
 
 void TextEditor::_edit_option(int p_op) {
 	CodeEdit *tx = code_editor->get_text_editor();
+	tx->apply_ime();
 
 	switch (p_op) {
 		case EDIT_UNDO: {
@@ -418,11 +423,11 @@ void TextEditor::_edit_option(int p_op) {
 			trim_trailing_whitespace();
 		} break;
 		case EDIT_CONVERT_INDENT_TO_SPACES: {
-			tx->set_indent_using_spaces(true);
+			code_editor->set_indent_using_spaces(true);
 			convert_indent();
 		} break;
 		case EDIT_CONVERT_INDENT_TO_TABS: {
-			tx->set_indent_using_spaces(false);
+			code_editor->set_indent_using_spaces(false);
 			convert_indent();
 		} break;
 		case EDIT_TO_UPPERCASE: {
@@ -501,6 +506,8 @@ void TextEditor::_text_edit_gui_input(const Ref<InputEvent> &ev) {
 	if (mb.is_valid()) {
 		if (mb->get_button_index() == MouseButton::RIGHT) {
 			CodeEdit *tx = code_editor->get_text_editor();
+
+			tx->apply_ime();
 
 			Point2i pos = tx->get_line_column_at_pos(mb->get_global_position() - tx->get_global_position());
 			int row = pos.y;
