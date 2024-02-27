@@ -5,5 +5,6 @@ minor = 3
 patch = 0
 status = "dev"
 module_config = ""
+
 website = "https://godotengine.org"
 docs = "latest"
