@@ -55,12 +55,14 @@
 #include "scene/resources/mesh.h"
 #include "scene/resources/packed_scene.h"
 #include "scene/resources/world_2d.h"
-#include "scene/resources/world_3d.h"
 #include "scene/scene_string_names.h"
 #include "servers/display_server.h"
 #include "servers/navigation_server_3d.h"
 #include "servers/physics_server_2d.h"
+#ifndef _3D_DISABLED
+#include "scene/resources/3d/world_3d.h"
 #include "servers/physics_server_3d.h"
+#endif // _3D_DISABLED
 #include "window.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -884,7 +886,9 @@ void SceneTree::set_pause(bool p_enabled) {
 		return;
 	}
 	paused = p_enabled;
+#ifndef _3D_DISABLED
 	PhysicsServer3D::get_singleton()->set_active(!p_enabled);
+#endif // _3D_DISABLED
 	PhysicsServer2D::get_singleton()->set_active(!p_enabled);
 	if (get_root()) {
 		get_root()->_propagate_pause_notification(p_enabled);
