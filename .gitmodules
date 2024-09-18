@@ -1,0 +1,4 @@
+
+[submodule "special_modules/summator"]
+	path = special_modules/summator
+	url = https://github.com/svelezw4games/summator.git
