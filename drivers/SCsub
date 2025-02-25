@@ -14,7 +14,8 @@ SConscript("windows/SCsub")
 
 # Sounds drivers
 SConscript("alsa/SCsub")
-SConscript("coreaudio/SCsub")
+if env["platform"] == "ios" or env["platform"] == "macos":
+    SConscript("coreaudio/SCsub")
 SConscript("pulseaudio/SCsub")
 if env["platform"] == "windows":
     SConscript("wasapi/SCsub")
@@ -25,7 +26,9 @@ if env["xaudio2"]:
         print_error("Target platform '{}' does not support the XAudio2 audio driver".format(env["platform"]))
         Exit(255)
     SConscript("xaudio2/SCsub")
-
+# Shared Apple platform drivers
+if env["platform"] in ["macos", "ios"]:
+    SConscript("apple/SCsub")
 # Midi drivers
 SConscript("alsamidi/SCsub")
 SConscript("coremidi/SCsub")

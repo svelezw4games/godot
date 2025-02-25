@@ -30,6 +30,7 @@
 
 #include "image_compress_basisu.h"
 
+#include "core/io/image.h"
 #include "core/os/os.h"
 #include "core/string/print_string.h"
 #include "servers/rendering_server.h"
@@ -37,13 +38,12 @@
 #include <transcoder/basisu_transcoder.h>
 #ifdef TOOLS_ENABLED
 #include <encoder/basisu_comp.h>
+
+static Mutex init_mutex;
+static bool initialized = false;
 #endif
 
 void basis_universal_init() {
-#ifdef TOOLS_ENABLED
-	basisu::basisu_encoder_init();
-#endif
-
 	basist::basisu_transcoder_init();
 }
 
@@ -79,6 +79,13 @@ inline void _basisu_pad_mipmap(const uint8_t *p_image_mip_data, Vector<uint8_t> 
 }
 
 Vector<uint8_t> basis_universal_packer(const Ref<Image> &p_image, Image::UsedChannels p_channels) {
+	init_mutex.lock();
+	if (!initialized) {
+		basisu::basisu_encoder_init();
+		initialized = true;
+	}
+	init_mutex.unlock();
+
 	uint64_t start_time = OS::get_singleton()->get_ticks_msec();
 
 	Ref<Image> image = p_image->duplicate();

@@ -30,6 +30,8 @@
 
 #include "egl_manager.h"
 
+#include "core/crypto/crypto_core.h"
+#include "core/io/dir_access.h"
 #include "drivers/gles3/rasterizer_gles3.h"
 
 #ifdef EGL_ENABLED
@@ -412,6 +414,30 @@ EGLContext EGLManager::get_context(DisplayServer::WindowID p_window_id) {
 	GLDisplay &display = displays[glwindow.gldisplay_id];
 
 	return display.egl_context;
+}
+
+EGLDisplay EGLManager::get_display(DisplayServer::WindowID p_window_id) {
+	GLWindow &glwindow = windows[p_window_id];
+
+	if (!glwindow.initialized) {
+		return EGL_NO_CONTEXT;
+	}
+
+	GLDisplay &display = displays[glwindow.gldisplay_id];
+
+	return display.egl_display;
+}
+
+EGLConfig EGLManager::get_config(DisplayServer::WindowID p_window_id) {
+	GLWindow &glwindow = windows[p_window_id];
+
+	if (!glwindow.initialized) {
+		return nullptr;
+	}
+
+	GLDisplay &display = displays[glwindow.gldisplay_id];
+
+	return display.egl_config;
 }
 
 Error EGLManager::initialize(void *p_native_display) {
